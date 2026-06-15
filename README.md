@@ -190,6 +190,11 @@ Changing a seed or a parameter in a downstream image-generation node does not
 regenerate the prompt. This makes it possible to generate multiple images from
 the same prompt without repeating API requests.
 
+Switching from `Every Run` to `On Input Change` also preserves the most
+recently generated prompt, as long as the other inputs of the node have not
+changed. If no prompt has been generated for those inputs yet, the node sends
+one API request and then caches the result.
+
 ## Output
 
 - `prompt` — the generated prompt as a ComfyUI `STRING`.

@@ -1,6 +1,9 @@
 import base64
+import hashlib
 import io
 import logging
+import threading
+from collections import OrderedDict
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import numpy as np
@@ -12,6 +15,7 @@ from .config import load_config, update_config
 
 LOGGER = logging.getLogger(__name__)
 MAX_IMAGES = 30
+PROMPT_CACHE_LIMIT = 256
 MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 DEFAULT_MODEL_CHOICES = [
@@ -27,6 +31,38 @@ _sessions = {
     "lmstudio": requests.Session(),
 }
 _model_choices = list(DEFAULT_MODEL_CHOICES)
+
+
+def build_prompt_cache_key(
+    unique_id,
+    prompt,
+    model,
+    temperature,
+    max_tokens,
+    top_p,
+    append_text,
+    auto_unload_lmstudio,
+    images,
+):
+    digest = hashlib.sha256()
+    values = (
+        str(unique_id or ""),
+        prompt,
+        model,
+        float(temperature),
+        int(max_tokens),
+        float(top_p),
+        str(append_text or ""),
+        bool(auto_unload_lmstudio),
+    )
+    digest.update(repr(values).encode("utf-8"))
+
+    for image in images:
+        digest.update(image.mode.encode("ascii"))
+        digest.update(repr(image.size).encode("ascii"))
+        digest.update(image.tobytes())
+
+    return digest.hexdigest()
 
 
 def get_lmstudio_headers(config):
@@ -280,6 +316,9 @@ def unload_lmstudio_model(model, config):
 
 
 class LLMPlusPrompt:
+    _prompt_cache = OrderedDict()
+    _prompt_cache_lock = threading.RLock()
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -318,6 +357,9 @@ class LLMPlusPrompt:
             "optional": {
                 "image": ("IMAGE",),
             },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            },
         }
 
     RETURN_TYPES = ("STRING",)
@@ -346,6 +388,7 @@ class LLMPlusPrompt:
         auto_unload_lmstudio,
         generation_mode,
         image=None,
+        unique_id=None,
     ):
         prompt = str(prompt or "").strip()
         if not prompt:
@@ -354,6 +397,25 @@ class LLMPlusPrompt:
         config = load_config()
         images = tensor_batch_to_pil(image)
         provider, model_name = normalize_model_choice(model)
+        cache_key = build_prompt_cache_key(
+            unique_id,
+            prompt,
+            model,
+            temperature,
+            max_tokens,
+            top_p,
+            append_text,
+            auto_unload_lmstudio,
+            images,
+        )
+        cache_slot = str(unique_id or cache_key)
+
+        if generation_mode == "On Input Change":
+            with self._prompt_cache_lock:
+                cached_entry = self._prompt_cache.get(cache_slot)
+                if cached_entry is not None and cached_entry[0] == cache_key:
+                    self._prompt_cache.move_to_end(cache_slot)
+                    return (cached_entry[1],)
 
         if provider == "gemini":
             result = send_to_gemini(
@@ -376,6 +438,12 @@ class LLMPlusPrompt:
                 unload_lmstudio_model(model_name, config)
             except Exception as error:
                 LOGGER.warning("LLM++ could not unload LM Studio model: %s", error)
+
+        with self._prompt_cache_lock:
+            self._prompt_cache[cache_slot] = (cache_key, result)
+            self._prompt_cache.move_to_end(cache_slot)
+            while len(self._prompt_cache) > PROMPT_CACHE_LIMIT:
+                self._prompt_cache.popitem(last=False)
 
         return (result,)
 
