@@ -122,7 +122,7 @@ app.registerExtension({
         const originalCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             originalCreated?.apply(this, arguments);
-            this.addWidget("button", "Refresh LM Studio models", null, async () => {
+            const refreshWidget = this.addWidget("button", "Refresh LM Studio models", null, async () => {
                 try {
                     await saveBackendSettings(currentSettings());
                     await refreshNodeModels(this);
@@ -130,6 +130,12 @@ app.registerExtension({
                     alert(`LLM++: ${error.message}`);
                 }
             });
+            const modelIndex = this.widgets?.findIndex((item) => item.name === "model") ?? -1;
+            const refreshIndex = this.widgets?.indexOf(refreshWidget) ?? -1;
+            if (modelIndex >= 0 && refreshIndex >= 0 && refreshIndex !== modelIndex - 1) {
+                this.widgets.splice(refreshIndex, 1);
+                this.widgets.splice(modelIndex, 0, refreshWidget);
+            }
         };
     },
 });
