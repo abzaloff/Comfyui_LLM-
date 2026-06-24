@@ -119,6 +119,12 @@ def normalize_model_choice(model_choice):
     return provider, model
 
 
+def is_every_run_mode(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "every run", "every_run"}
+
+
 def tensor_batch_to_pil(images):
     if images is None:
         return []
@@ -349,10 +355,7 @@ class LLMPlusPrompt:
                     {"default": "", "multiline": True, "dynamicPrompts": False},
                 ),
                 "auto_unload_lmstudio": ("BOOLEAN", {"default": False}),
-                "generation_mode": (
-                    ["Every Run", "On Input Change"],
-                    {"default": "Every Run"},
-                ),
+                "Every run": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "image": ("IMAGE",),
@@ -372,10 +375,13 @@ class LLMPlusPrompt:
     )
 
     @classmethod
-    def IS_CHANGED(cls, generation_mode="Every Run", **_kwargs):
-        if generation_mode == "Every Run":
+    def IS_CHANGED(cls, **kwargs):
+        every_run = kwargs.get("Every run", kwargs.get("every_run", True))
+        generation_mode = kwargs.get("generation_mode")
+        mode_value = generation_mode if generation_mode is not None else every_run
+        if is_every_run_mode(mode_value):
             return float("nan")
-        return generation_mode
+        return False
 
     def generate(
         self,
@@ -386,9 +392,10 @@ class LLMPlusPrompt:
         top_p,
         append_text,
         auto_unload_lmstudio,
-        generation_mode,
         image=None,
         unique_id=None,
+        generation_mode=None,
+        **kwargs,
     ):
         prompt = str(prompt or "").strip()
         if not prompt:
@@ -409,8 +416,10 @@ class LLMPlusPrompt:
             images,
         )
         cache_slot = str(unique_id or cache_key)
+        every_run = kwargs.get("Every run", kwargs.get("every_run", True))
+        mode_value = generation_mode if generation_mode is not None else every_run
 
-        if generation_mode == "On Input Change":
+        if not is_every_run_mode(mode_value):
             with self._prompt_cache_lock:
                 cached_entry = self._prompt_cache.get(cache_slot)
                 if cached_entry is not None and cached_entry[0] == cache_key:

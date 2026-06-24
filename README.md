@@ -163,18 +163,18 @@ Optional text appended to the generated prompt.
 
 Unloads the selected LM Studio model after receiving the response.
 
-### `generation_mode`
+### `Every run`
 
 Controls when the node sends a new API request.
 
-#### `Every Run`
+#### Enabled
 
 Generates a new prompt every time the workflow is queued or run.
 
-Use this mode when you want a different prompt variation on every workflow
-execution.
+This is the default. Use it when you want a different prompt variation on every
+workflow execution.
 
-#### `On Input Change`
+#### Disabled
 
 Generates the prompt once and lets ComfyUI cache the result. A new API request
 is sent only when an input of the `LLM++ Prompt` node changes, including:
@@ -190,10 +190,10 @@ Changing a seed or a parameter in a downstream image-generation node does not
 regenerate the prompt. This makes it possible to generate multiple images from
 the same prompt without repeating API requests.
 
-Switching from `Every Run` to `On Input Change` also preserves the most
-recently generated prompt, as long as the other inputs of the node have not
-changed. If no prompt has been generated for those inputs yet, the node sends
-one API request and then caches the result.
+Disabling `Every run` also preserves the most recently generated prompt, as long
+as the other inputs of the node have not changed. If no prompt has been
+generated for those inputs yet, the node sends one API request and then caches
+the result.
 
 ## Output
 
@@ -209,9 +209,8 @@ Connect it to any node that accepts text.
 4. Enter an instruction in `prompt`.
 5. Select a model.
 6. Configure `temperature`, `max_tokens`, and `top_p`.
-7. Select a generation mode:
-   - `Every Run` for a new prompt on each execution;
-   - `On Input Change` to reuse the generated prompt.
+7. Leave `Every run` enabled for a new prompt on each execution, or disable it
+   to reuse the generated prompt until an input changes.
 8. Connect the `prompt` output to the required text input.
 9. Queue the workflow.
 
@@ -248,9 +247,9 @@ disconnect the `image` input.
 
 ### The prompt is regenerated on every workflow run
 
-Set `generation_mode` to `On Input Change` and make sure the inputs of the
-`LLM++ Prompt` node remain unchanged.
+Disable `Every run` and make sure the inputs of the `LLM++ Prompt` node remain
+unchanged.
 
 ### A new prompt is required on every workflow run
 
-Set `generation_mode` to `Every Run`.
+Enable `Every run`.
