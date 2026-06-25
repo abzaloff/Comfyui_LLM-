@@ -40,7 +40,7 @@ def build_prompt_cache_key(
     temperature,
     max_tokens,
     top_p,
-    append_text,
+    prompt_to_improve,
     auto_unload_lmstudio,
     images,
 ):
@@ -52,7 +52,7 @@ def build_prompt_cache_key(
         float(temperature),
         int(max_tokens),
         float(top_p),
-        str(append_text or ""),
+        str(prompt_to_improve or ""),
         bool(auto_unload_lmstudio),
     )
     digest.update(repr(values).encode("utf-8"))
@@ -321,6 +321,17 @@ def unload_lmstudio_model(model, config):
         )
 
 
+def build_model_prompt(instruction, prompt_to_improve):
+    source_prompt = str(prompt_to_improve or "").strip()
+    if not source_prompt:
+        return instruction
+    return (
+        f"{instruction}\n\n"
+        "Prompt to improve:\n"
+        f"{source_prompt}"
+    )
+
+
 class LLMPlusPrompt:
     _prompt_cache = OrderedDict()
     _prompt_cache_lock = threading.RLock()
@@ -350,9 +361,14 @@ class LLMPlusPrompt:
                     "FLOAT",
                     {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.05},
                 ),
-                "append_text": (
+                "Prompt to Improve": (
                     "STRING",
-                    {"default": "", "multiline": True, "dynamicPrompts": False},
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "dynamicPrompts": False,
+                        "placeholder": "Paste the prompt you want the selected model to improve",
+                    },
                 ),
                 "auto_unload_lmstudio": ("BOOLEAN", {"default": False}),
                 "Every run": ("BOOLEAN", {"default": True}),
@@ -390,8 +406,8 @@ class LLMPlusPrompt:
         temperature,
         max_tokens,
         top_p,
-        append_text,
-        auto_unload_lmstudio,
+        prompt_to_improve=None,
+        auto_unload_lmstudio=False,
         image=None,
         unique_id=None,
         generation_mode=None,
@@ -404,6 +420,11 @@ class LLMPlusPrompt:
         config = load_config()
         images = tensor_batch_to_pil(image)
         provider, model_name = normalize_model_choice(model)
+        prompt_to_improve = kwargs.get(
+            "Prompt to Improve",
+            kwargs.get("prompt_to_improve", kwargs.get("append_text", prompt_to_improve)),
+        )
+        model_prompt = build_model_prompt(prompt, prompt_to_improve)
         cache_key = build_prompt_cache_key(
             unique_id,
             prompt,
@@ -411,7 +432,7 @@ class LLMPlusPrompt:
             temperature,
             max_tokens,
             top_p,
-            append_text,
+            prompt_to_improve,
             auto_unload_lmstudio,
             images,
         )
@@ -428,19 +449,16 @@ class LLMPlusPrompt:
 
         if provider == "gemini":
             result = send_to_gemini(
-                model_name, prompt, images, temperature, max_tokens, top_p, config
+                model_name, model_prompt, images, temperature, max_tokens, top_p, config
             )
         elif provider == "lmstudio":
             result = send_to_lmstudio(
-                model_name, prompt, images, temperature, max_tokens, top_p, config
+                model_name, model_prompt, images, temperature, max_tokens, top_p, config
             )
         else:
             result = send_to_mistral(
-                model_name, prompt, images, temperature, max_tokens, top_p, config
+                model_name, model_prompt, images, temperature, max_tokens, top_p, config
             )
-
-        if append_text and str(append_text).strip():
-            result = f"{result}, {str(append_text).strip()}"
 
         if provider == "lmstudio" and auto_unload_lmstudio:
             try:
