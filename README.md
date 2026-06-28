@@ -114,6 +114,31 @@ Load Image -> LLM++ Prompt -> CLIP Text Encode
 The image input is optional. The node can also improve or expand a text prompt
 without an image.
 
+## Prompt Presets
+
+The `LLM++ Prompt` node includes a `Preset` dropdown above the `prompt` field.
+Selecting a preset copies its text into the normal `prompt` input, so workflows
+save the exact instruction text and do not depend on the preset file later.
+
+Use `Edit presets` on the node to manage reusable instructions:
+
+- `New` clears the editor so a new preset can be created.
+- `Save` updates the current preset or creates a new one when the name is new.
+- `Duplicate` copies the current preset under a new editable name.
+- `Delete` removes the selected preset after confirmation.
+
+Presets are loaded lazily by the browser UI. ComfyUI startup only registers the
+API routes; preset text is read when a preset is selected or edited.
+
+For advanced users, presets are stored as UTF-8 `.txt` files in:
+
+```text
+presets/
+```
+
+The folder is local user data and is ignored by git. If the folder does not
+exist yet, the extension creates the default presets on first use.
+
 ## Inputs
 
 ### `prompt`

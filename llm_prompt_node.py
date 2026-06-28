@@ -11,6 +11,7 @@ import requests
 from PIL import Image
 
 from .config import load_config, update_config
+from .presets import delete_preset, get_preset, list_presets, save_preset
 
 
 LOGGER = logging.getLogger(__name__)
@@ -507,6 +508,48 @@ def register_routes():
                 },
                 status=502,
             )
+
+    @routes.get("/llm-plus/presets")
+    async def get_presets(_request):
+        try:
+            return web.json_response({"ok": True, "presets": list_presets()})
+        except Exception as error:
+            return web.json_response({"ok": False, "error": str(error)}, status=500)
+
+    @routes.post("/llm-plus/presets/get")
+    async def get_preset_text(request):
+        try:
+            payload = await request.json()
+            preset = get_preset(payload.get("name", ""))
+            return web.json_response({"ok": True, "preset": preset})
+        except KeyError as error:
+            return web.json_response({"ok": False, "error": str(error)}, status=404)
+        except Exception as error:
+            return web.json_response({"ok": False, "error": str(error)}, status=400)
+
+    @routes.post("/llm-plus/presets/save")
+    async def save_preset_text(request):
+        try:
+            payload = await request.json()
+            result = save_preset(
+                payload.get("name", ""),
+                payload.get("text", ""),
+                payload.get("original_name", ""),
+            )
+            return web.json_response({"ok": True, **result})
+        except Exception as error:
+            return web.json_response({"ok": False, "error": str(error)}, status=400)
+
+    @routes.post("/llm-plus/presets/delete")
+    async def delete_preset_text(request):
+        try:
+            payload = await request.json()
+            result = delete_preset(payload.get("name", ""))
+            return web.json_response({"ok": True, **result})
+        except KeyError as error:
+            return web.json_response({"ok": False, "error": str(error)}, status=404)
+        except Exception as error:
+            return web.json_response({"ok": False, "error": str(error)}, status=400)
 
 
 register_routes()

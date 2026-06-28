@@ -1,5 +1,6 @@
 llm_prompt_config.json
 llm_prompt_config.json.tmp
+presets/
 __pycache__/
 .pytest_cache/
 tests/
