@@ -50,6 +50,7 @@ const SETTINGS = [
         attrs: { min: 32, step: 1 },
     },
 ];
+const SELECTED_PRESET_PROPERTY = "llm_plus_selected_preset";
 
 async function saveBackendSettings(values) {
     const response = await api.fetchApi("/llm-plus/settings", {
@@ -136,6 +137,29 @@ function setNodePrompt(node, text) {
     promptWidget.value = text || "";
     promptWidget.callback?.(promptWidget.value);
     node.setDirtyCanvas(true, true);
+}
+
+function getStoredPresetName(node) {
+    return String(node.properties?.[SELECTED_PRESET_PROPERTY] || "").trim();
+}
+
+function storePresetName(node, name) {
+    node.properties ??= {};
+    const value = String(name || "").trim();
+    if (value) {
+        node.properties[SELECTED_PRESET_PROPERTY] = value;
+    } else {
+        delete node.properties[SELECTED_PRESET_PROPERTY];
+    }
+    node.setDirtyCanvas(true, true);
+}
+
+function choosePresetName(names, preferredName) {
+    const preferred = String(preferredName || "").trim();
+    if (preferred && names.includes(preferred)) {
+        return preferred;
+    }
+    return names[0] || "";
 }
 
 function ensurePresetDialogStyles() {
@@ -313,7 +337,10 @@ function createPresetEditor(node, state) {
         }
         const names = state.presets.map((preset) => preset.name);
         presetWidget.options.values = names.length ? names : ["No presets"];
-        presetWidget.value = selectedName || names[0] || "No presets";
+        const storedName = choosePresetName(names, selectedName);
+        presetWidget.value = storedName || "No presets";
+        state.selectedName = storedName;
+        storePresetName(node, storedName);
         node.setDirtyCanvas(true, true);
     };
 
@@ -425,9 +452,10 @@ app.registerExtension({
         const originalCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             originalCreated?.apply(this, arguments);
+            const storedPresetName = getStoredPresetName(this);
             const presetState = {
                 presets: [],
-                selectedName: "",
+                selectedName: storedPresetName,
             };
 
             const presetWidget = this.addWidget("combo", "Preset", "Loading...", async (value) => {
@@ -437,6 +465,7 @@ app.registerExtension({
                 try {
                     const preset = await loadPresetText(value);
                     presetState.selectedName = preset.name;
+                    storePresetName(this, preset.name);
                     setNodePrompt(this, preset.text);
                 } catch (error) {
                     alert(`LLM++: ${error.message}`);
@@ -482,13 +511,19 @@ app.registerExtension({
             loadPresets().then((presets) => {
                 presetState.presets = presets;
                 const names = presets.map((preset) => preset.name);
+                const selectedName = choosePresetName(
+                    names,
+                    presetState.selectedName || getStoredPresetName(this),
+                );
                 presetWidget.options.values = names.length ? names : ["No presets"];
-                presetWidget.value = names[0] || "No presets";
-                presetState.selectedName = names[0] || "";
+                presetWidget.value = selectedName || "No presets";
+                presetState.selectedName = selectedName;
+                storePresetName(this, selectedName);
                 this.setDirtyCanvas(true, true);
             }).catch((error) => {
                 presetWidget.options.values = ["No presets"];
                 presetWidget.value = "No presets";
+                presetState.selectedName = "";
                 console.error("LLM++ preset load failed", error);
                 this.setDirtyCanvas(true, true);
             });
