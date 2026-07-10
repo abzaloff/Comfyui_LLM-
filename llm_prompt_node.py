@@ -20,7 +20,7 @@ PROMPT_CACHE_LIMIT = 256
 MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 DEFAULT_MODEL_CHOICES = [
-    "mistral: pixtral-large-latest",
+    "mistral: mistral-large-2512",
     "gemini: gemini-2.5-flash",
     "gemini: gemini-2.5-pro",
 ]

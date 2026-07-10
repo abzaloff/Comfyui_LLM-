@@ -10,7 +10,7 @@ that accepts text.
 
 ## Supported Models
 
-- Mistral: `pixtral-large-latest`
+- Mistral: `mistral-large-2512`
 - Gemini: `gemini-2.5-flash`
 - Gemini Pro: `gemini-2.5-pro`
 - Local LM Studio models through its OpenAI-compatible API
@@ -50,7 +50,7 @@ Settings -> LLM++ -> API and image settings
 
 1. Create an API key in your Mistral account.
 2. Enter it in `Mistral API key`.
-3. Select `mistral: pixtral-large-latest` in the node.
+3. Select `mistral: mistral-large-2512` in the node.
 
 ### Gemini
 
