@@ -7,6 +7,7 @@ CONFIG_PATH = Path(__file__).with_name("llm_prompt_config.json")
 DEFAULT_CONFIG = {
     "mistral_api_key": "",
     "gemini_api_key": "",
+    "groq_api_key": "",
     "lmstudio_api_base": "http://127.0.0.1:1234/v1",
     "lmstudio_api_key": "",
     "image_max_size": 768,
@@ -27,6 +28,7 @@ def _coerce_config(data):
 
     result["mistral_api_key"] = str(result["mistral_api_key"] or "").strip()
     result["gemini_api_key"] = str(result["gemini_api_key"] or "").strip()
+    result["groq_api_key"] = str(result["groq_api_key"] or "").strip()
     result["lmstudio_api_base"] = (
         str(result["lmstudio_api_base"] or DEFAULT_CONFIG["lmstudio_api_base"])
         .strip()

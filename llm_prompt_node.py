@@ -19,16 +19,33 @@ MAX_IMAGES = 30
 PROMPT_CACHE_LIMIT = 256
 MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_VISION_MODEL = "qwen/qwen3.6-27b"
+GROQ_MAX_IMAGES = 3
+GEMINI_FREE_TIER_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+]
+GEMINI_MODELS_WITHOUT_SAMPLING = {
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
+}
 DEFAULT_MODEL_CHOICES = [
     "mistral: mistral-large-2512",
-    "gemini: gemini-2.5-flash",
-    "gemini: gemini-2.5-pro",
+    f"groq: {GROQ_VISION_MODEL}",
+    *[f"gemini: {model}" for model in GEMINI_FREE_TIER_MODELS],
 ]
 DEFAULT_MODEL_CHOICE = DEFAULT_MODEL_CHOICES[0]
 
 _sessions = {
     "mistral": requests.Session(),
     "gemini": requests.Session(),
+    "groq": requests.Session(),
     "lmstudio": requests.Session(),
 }
 _model_choices = list(DEFAULT_MODEL_CHOICES)
@@ -115,7 +132,7 @@ def normalize_model_choice(model_choice):
     provider, model = value.split(":", 1)
     provider = provider.strip().lower()
     model = model.strip()
-    if provider not in {"mistral", "gemini", "lmstudio"} or not model:
+    if provider not in {"mistral", "gemini", "groq", "lmstudio"} or not model:
         raise ValueError(f"Invalid model selection: {value}")
     return provider, model
 
@@ -230,6 +247,17 @@ def send_to_gemini(model, prompt, images, temperature, max_tokens, top_p, config
         )
     parts.append({"text": prompt})
 
+    generation_config = {
+        "maxOutputTokens": int(max_tokens),
+    }
+    if model not in GEMINI_MODELS_WITHOUT_SAMPLING:
+        generation_config.update(
+            {
+                "temperature": float(temperature),
+                "topP": float(top_p),
+            }
+        )
+
     response = _sessions["gemini"].post(
         f"{GEMINI_API_BASE}/{quote(model, safe='')}:generateContent",
         headers={
@@ -239,11 +267,7 @@ def send_to_gemini(model, prompt, images, temperature, max_tokens, top_p, config
         },
         json={
             "contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {
-                "temperature": float(temperature),
-                "maxOutputTokens": int(max_tokens),
-                "topP": float(top_p),
-            },
+            "generationConfig": generation_config,
         },
         timeout=120,
     )
@@ -263,6 +287,73 @@ def send_to_gemini(model, prompt, images, temperature, max_tokens, top_p, config
     if not text.strip():
         raise ValueError("Gemini returned an empty response.")
     return text.strip()
+
+
+def send_to_groq(model, prompt, images, temperature, max_tokens, top_p, config):
+    if not config["groq_api_key"]:
+        raise ValueError("Set the Groq API key in Settings > LLM++.")
+    if model != GROQ_VISION_MODEL:
+        raise ValueError(f"Unsupported Groq model: {model}")
+    if len(images) > GROQ_MAX_IMAGES:
+        raise ValueError(
+            f"Groq {GROQ_VISION_MODEL} supports a maximum of "
+            f"{GROQ_MAX_IMAGES} images per request."
+        )
+
+    content = [{"type": "text", "text": prompt}]
+    for image in images:
+        encoded = encode_image_for_request(image, config)
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
+            }
+        )
+
+    response = _sessions["groq"].post(
+        GROQ_API_URL,
+        headers={
+            "Authorization": f"Bearer {config['groq_api_key']}",
+            "Content-Type": "application/json",
+            "User-Agent": "ComfyUI-LLM++/1.0",
+        },
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": content}],
+            "temperature": float(temperature),
+            "max_completion_tokens": int(max_tokens),
+            "top_p": float(top_p),
+            "reasoning_effort": "none",
+        },
+        timeout=120,
+    )
+    if not response.ok:
+        try:
+            error = response.json().get("error", {})
+            message = error.get("message") if isinstance(error, dict) else None
+            message = message or response.text
+        except Exception:
+            message = response.text or response.reason
+        if response.status_code in (401, 403):
+            raise ValueError(f"Groq authorization failed: {message}")
+        if response.status_code == 429:
+            raise ValueError(f"Groq rate limit exceeded: {message}")
+        raise ValueError(f"Groq API error {response.status_code}: {message}")
+
+    choices = response.json().get("choices") or []
+    if not choices:
+        raise ValueError("Groq returned no choices.")
+    content = (choices[0].get("message") or {}).get("content", "")
+    if isinstance(content, list):
+        content = "\n".join(
+            part.get("text", "")
+            for part in content
+            if isinstance(part, dict) and part.get("text")
+        )
+    text = str(content or "").strip()
+    if not text:
+        raise ValueError("Groq returned an empty response.")
+    return text
 
 
 def send_to_lmstudio(model, prompt, images, temperature, max_tokens, top_p, config):
@@ -387,7 +478,7 @@ class LLMPlusPrompt:
     FUNCTION = "generate"
     CATEGORY = "LLM++"
     DESCRIPTION = (
-        "Generates an image prompt with Mistral, Gemini, or an LM Studio model. "
+        "Generates an image prompt with Mistral, Gemini, Groq, or an LM Studio model. "
         "Configure API keys and image limits in ComfyUI Settings > LLM++."
     )
 
@@ -450,6 +541,10 @@ class LLMPlusPrompt:
 
         if provider == "gemini":
             result = send_to_gemini(
+                model_name, model_prompt, images, temperature, max_tokens, top_p, config
+            )
+        elif provider == "groq":
+            result = send_to_groq(
                 model_name, model_prompt, images, temperature, max_tokens, top_p, config
             )
         elif provider == "lmstudio":

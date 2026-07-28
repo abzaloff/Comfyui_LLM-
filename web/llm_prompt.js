@@ -19,6 +19,14 @@ const SETTINGS = [
         attrs: { type: "password", autocomplete: "off" },
     },
     {
+        id: "LLMPlus.GroqApiKey",
+        key: "groq_api_key",
+        name: "Groq API key",
+        type: "text",
+        defaultValue: "",
+        attrs: { type: "password", autocomplete: "off" },
+    },
+    {
         id: "LLMPlus.LMStudioApiBase",
         key: "lmstudio_api_base",
         name: "LM Studio API base",

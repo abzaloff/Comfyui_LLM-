@@ -11,8 +11,10 @@ that accepts text.
 ## Supported Models
 
 - Mistral: `mistral-large-2512`
-- Gemini: `gemini-2.5-flash`
-- Gemini Pro: `gemini-2.5-pro`
+- Gemini: `gemini-3.6-flash`, `gemini-3.5-flash`,
+  `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-2.5-pro`,
+  `gemini-2.5-flash`, and `gemini-2.5-flash-lite`
+- Groq: `qwen/qwen3.6-27b`
 - Local LM Studio models through its OpenAI-compatible API
 
 Image support in LM Studio depends on the selected model. A text-only model may
@@ -54,11 +56,19 @@ Settings -> LLM++ -> API and image settings
 
 ### Gemini
 
-The same Gemini API key is used for Flash and Pro.
+The same Gemini API key is used for all listed Gemini models.
 
 1. Create a Gemini API key in Google AI Studio.
 2. Enter it in `Gemini API key`.
-3. Select `gemini: gemini-2.5-flash` or `gemini: gemini-2.5-pro`.
+3. Select a model with the `gemini:` prefix.
+
+### Groq
+
+1. Create an API key in GroqCloud.
+2. Enter it in `Groq API key`.
+3. Select `groq: qwen/qwen3.6-27b`.
+
+Groq requests use non-thinking mode and support up to three images per request.
 
 ### LM Studio
 
