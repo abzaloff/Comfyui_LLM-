@@ -10,7 +10,8 @@ that accepts text.
 
 ## Supported Models
 
-- Mistral: `mistral-large-2512`
+- Mistral: `mistral-large-2512`, `mistral-medium-latest`,
+  `mistral-small-latest`, and `ministral-14b-latest`
 - Gemini: `gemini-3.6-flash`, `gemini-3.5-flash`,
   `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-2.5-pro`,
   `gemini-2.5-flash`, and `gemini-2.5-flash-lite`
@@ -52,7 +53,7 @@ Settings -> LLM++ -> API and image settings
 
 1. Create an API key in your Mistral account.
 2. Enter it in `Mistral API key`.
-3. Select `mistral: mistral-large-2512` in the node.
+3. Select a model with the `mistral:` prefix.
 
 ### Gemini
 
