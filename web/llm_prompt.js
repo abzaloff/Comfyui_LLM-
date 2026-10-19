@@ -59,6 +59,54 @@ const SETTINGS = [
     },
 ];
 const SELECTED_PRESET_PROPERTY = "llm_plus_selected_preset";
+const CONTROL_COLORS = {
+    green: "#15803d",
+    greenActive: "#16a34a",
+    greenOutline: "#4ade80",
+    red: "#dc2626",
+    text: "#ffffff",
+};
+
+function colorizeButtonWidget(widget) {
+    if (!widget) {
+        return;
+    }
+    Object.defineProperties(widget, {
+        background_color: {
+            configurable: true,
+            get: () => CONTROL_COLORS.green,
+        },
+        text_color: {
+            configurable: true,
+            get: () => CONTROL_COLORS.text,
+        },
+    });
+    widget.getOutlineColor = () => CONTROL_COLORS.greenOutline;
+}
+
+function colorizeBooleanWidget(widget) {
+    if (!widget?.drawWidget || widget.__llmPlusColorized) {
+        return;
+    }
+    const originalDrawWidget = widget.drawWidget.bind(widget);
+    widget.drawWidget = function (ctx, options) {
+        originalDrawWidget(ctx, options);
+        const margin = 15;
+        ctx.save();
+        ctx.fillStyle = this.value ? CONTROL_COLORS.greenActive : CONTROL_COLORS.red;
+        ctx.beginPath();
+        ctx.arc(
+            options.width - margin * 2,
+            this.y + this.height * 0.5,
+            this.height * 0.36,
+            0,
+            Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.restore();
+    };
+    widget.__llmPlusColorized = true;
+}
 
 async function saveBackendSettings(values) {
     const response = await api.fetchApi("/llm-plus/settings", {
@@ -491,6 +539,7 @@ app.registerExtension({
                     alert(`LLM++: ${error.message}`);
                 }
             });
+            colorizeButtonWidget(editPresetWidget);
 
             const refreshWidget = this.addWidget("button", "Refresh LM Studio models", null, async () => {
                 try {
@@ -500,6 +549,14 @@ app.registerExtension({
                     alert(`LLM++: ${error.message}`);
                 }
             });
+            colorizeButtonWidget(refreshWidget);
+
+            colorizeBooleanWidget(
+                this.widgets?.find((item) => item.name === "auto_unload_lmstudio"),
+            );
+            colorizeBooleanWidget(
+                this.widgets?.find((item) => item.name === "Every run"),
+            );
             const modelIndex = this.widgets?.findIndex((item) => item.name === "model") ?? -1;
             const refreshIndex = this.widgets?.indexOf(refreshWidget) ?? -1;
             if (modelIndex >= 0 && refreshIndex >= 0 && refreshIndex !== modelIndex - 1) {
