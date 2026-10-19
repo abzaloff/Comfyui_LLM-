@@ -125,6 +125,14 @@ Load Image -> LLM++ Prompt -> CLIP Text Encode
 The image input is optional. The node can also improve or expand a text prompt
 without an image.
 
+For a ComfyUI text encoder that supports text generation, connect the same
+`CLIPLoader` output used by `CLIP Text Encode` to the optional `clip` input of
+`LLM++ Prompt`. When `clip` is connected, LLM++ generates the prompt locally
+through that encoder, using the optional `image` input as visual context. The
+`model` dropdown and API settings are ignored for this run. The output remains
+a `STRING` that can be connected to `CLIP Text Encode`. The encoder must support
+ComfyUI's `TextGenerate` operations; a conditioning-only encoder will not work.
+
 ## Prompt Presets
 
 The `LLM++ Prompt` node includes a `Preset` dropdown above the `prompt` field.
@@ -174,9 +182,16 @@ Describe the image using comma-separated SDXL tags.
 
 An optional ComfyUI `IMAGE` input. Image batches are supported.
 
+### `clip`
+
+An optional ComfyUI `CLIP` input for local prompt generation. It takes priority
+over the selected provider. Connect a text encoder that also works with
+ComfyUI's `TextGenerate` node. The same encoder can feed the downstream
+`CLIP Text Encode` node.
+
 ### `model`
 
-The provider and model used for prompt generation.
+The provider and model used for prompt generation when `clip` is not connected.
 
 ### `temperature`
 

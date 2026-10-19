@@ -2,6 +2,7 @@ import base64
 import hashlib
 import io
 import logging
+import secrets
 import threading
 from collections import OrderedDict
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -64,6 +65,7 @@ def build_prompt_cache_key(
     prompt_to_improve,
     auto_unload_lmstudio,
     images,
+    clip=None,
 ):
     digest = hashlib.sha256()
     values = (
@@ -75,6 +77,7 @@ def build_prompt_cache_key(
         float(top_p),
         str(prompt_to_improve or ""),
         bool(auto_unload_lmstudio),
+        id(clip) if clip is not None else None,
     )
     digest.update(repr(values).encode("utf-8"))
 
@@ -470,6 +473,7 @@ class LLMPlusPrompt:
             },
             "optional": {
                 "image": ("IMAGE",),
+                "clip": ("CLIP",),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID",
@@ -504,6 +508,7 @@ class LLMPlusPrompt:
         prompt_to_improve=None,
         auto_unload_lmstudio=False,
         image=None,
+        clip=None,
         unique_id=None,
         generation_mode=None,
         **kwargs,
@@ -512,9 +517,7 @@ class LLMPlusPrompt:
         if not prompt:
             raise ValueError("Prompt is empty.")
 
-        config = load_config()
         images = tensor_batch_to_pil(image)
-        provider, model_name = normalize_model_choice(model)
         prompt_to_improve = kwargs.get(
             "Prompt to Improve",
             kwargs.get("prompt_to_improve", kwargs.get("append_text", prompt_to_improve)),
@@ -530,6 +533,7 @@ class LLMPlusPrompt:
             prompt_to_improve,
             auto_unload_lmstudio,
             images,
+            clip,
         )
         cache_slot = str(unique_id or cache_key)
         every_run = kwargs.get("Every run", kwargs.get("every_run", True))
@@ -542,28 +546,42 @@ class LLMPlusPrompt:
                     self._prompt_cache.move_to_end(cache_slot)
                     return (cached_entry[1],)
 
-        if provider == "gemini":
-            result = send_to_gemini(
-                model_name, model_prompt, images, temperature, max_tokens, top_p, config
+        if clip is not None:
+            tokens = clip.tokenize(model_prompt, image=image, min_length=1, thinking=False)
+            generated_ids = clip.generate(
+                tokens,
+                do_sample=float(temperature) > 0,
+                max_length=int(max_tokens),
+                temperature=max(float(temperature), 0.01),
+                top_p=float(top_p),
+                seed=secrets.randbits(64),
             )
-        elif provider == "groq":
-            result = send_to_groq(
-                model_name, model_prompt, images, temperature, max_tokens, top_p, config
-            )
-        elif provider == "lmstudio":
-            result = send_to_lmstudio(
-                model_name, model_prompt, images, temperature, max_tokens, top_p, config
-            )
+            result = clip.decode(generated_ids).rpartition("</think>")[-1].strip()
         else:
-            result = send_to_mistral(
-                model_name, model_prompt, images, temperature, max_tokens, top_p, config
-            )
+            config = load_config()
+            provider, model_name = normalize_model_choice(model)
+            if provider == "gemini":
+                result = send_to_gemini(
+                    model_name, model_prompt, images, temperature, max_tokens, top_p, config
+                )
+            elif provider == "groq":
+                result = send_to_groq(
+                    model_name, model_prompt, images, temperature, max_tokens, top_p, config
+                )
+            elif provider == "lmstudio":
+                result = send_to_lmstudio(
+                    model_name, model_prompt, images, temperature, max_tokens, top_p, config
+                )
+            else:
+                result = send_to_mistral(
+                    model_name, model_prompt, images, temperature, max_tokens, top_p, config
+                )
 
-        if provider == "lmstudio" and auto_unload_lmstudio:
-            try:
-                unload_lmstudio_model(model_name, config)
-            except Exception as error:
-                LOGGER.warning("LLM++ could not unload LM Studio model: %s", error)
+            if provider == "lmstudio" and auto_unload_lmstudio:
+                try:
+                    unload_lmstudio_model(model_name, config)
+                except Exception as error:
+                    LOGGER.warning("LLM++ could not unload LM Studio model: %s", error)
 
         with self._prompt_cache_lock:
             self._prompt_cache[cache_slot] = (cache_key, result)
