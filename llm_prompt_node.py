@@ -71,12 +71,12 @@ def build_prompt_cache_key(
     values = (
         str(unique_id or ""),
         prompt,
-        model,
+        model if clip is None else None,
         float(temperature),
         int(max_tokens),
         float(top_p),
         str(prompt_to_improve or ""),
-        bool(auto_unload_lmstudio),
+        bool(auto_unload_lmstudio) if clip is None else False,
         id(clip) if clip is not None else None,
     )
     digest.update(repr(values).encode("utf-8"))
@@ -488,6 +488,12 @@ class LLMPlusPrompt:
         "Generates an image prompt with Mistral, Gemini, Groq, or an LM Studio model. "
         "Configure API keys and image limits in ComfyUI Settings > LLM++."
     )
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, model):
+        # ComfyUI validates combo values before running generate. A saved LM Studio
+        # selection can be absent from the list while a connected CLIP is in use.
+        return True
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
