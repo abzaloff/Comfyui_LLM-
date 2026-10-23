@@ -438,6 +438,8 @@ class LLMPlusPrompt:
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "Enable Image Input": ("BOOLEAN", {"default": True}),
+                "Enable Clip Input": ("BOOLEAN", {"default": False}),
                 "prompt": (
                     "STRING",
                     {
@@ -468,12 +470,12 @@ class LLMPlusPrompt:
                         "placeholder": "Paste the prompt you want the selected model to improve",
                     },
                 ),
-                "auto_unload_lmstudio": ("BOOLEAN", {"default": False}),
-                "Every run": ("BOOLEAN", {"default": True}),
+                "auto_unload_lmstudio": ("BOOLEAN", {"default": True}),
+                "Every run": ("BOOLEAN", {"default": False}),
             },
             "optional": {
-                "image": ("IMAGE",),
-                "clip": ("CLIP",),
+                "image": ("IMAGE", {"lazy": True}),
+                "clip": ("CLIP", {"lazy": True}),
             },
             "hidden": {
                 "unique_id": "UNIQUE_ID",
@@ -495,9 +497,25 @@ class LLMPlusPrompt:
         # selection can be absent from the list while a connected CLIP is in use.
         return True
 
+    def check_lazy_status(self, **kwargs):
+        required = []
+        if (
+            kwargs.get("Enable Image Input", True)
+            and "image" in kwargs
+            and kwargs["image"] is None
+        ):
+            required.append("image")
+        if (
+            kwargs.get("Enable Clip Input", True)
+            and "clip" in kwargs
+            and kwargs["clip"] is None
+        ):
+            required.append("clip")
+        return required
+
     @classmethod
     def IS_CHANGED(cls, **kwargs):
-        every_run = kwargs.get("Every run", kwargs.get("every_run", True))
+        every_run = kwargs.get("Every run", kwargs.get("every_run", False))
         generation_mode = kwargs.get("generation_mode")
         mode_value = generation_mode if generation_mode is not None else every_run
         if is_every_run_mode(mode_value):
@@ -512,7 +530,7 @@ class LLMPlusPrompt:
         max_tokens,
         top_p,
         prompt_to_improve=None,
-        auto_unload_lmstudio=False,
+        auto_unload_lmstudio=True,
         image=None,
         clip=None,
         unique_id=None,
@@ -523,7 +541,12 @@ class LLMPlusPrompt:
         if not prompt:
             raise ValueError("Prompt is empty.")
 
-        images = tensor_batch_to_pil(image)
+        if not kwargs.get("Enable Image Input", True):
+            image = None
+        if not kwargs.get("Enable Clip Input", True):
+            clip = None
+
+        images = tensor_batch_to_pil(image) if image is not None else []
         prompt_to_improve = kwargs.get(
             "Prompt to Improve",
             kwargs.get("prompt_to_improve", kwargs.get("append_text", prompt_to_improve)),
@@ -542,7 +565,7 @@ class LLMPlusPrompt:
             clip,
         )
         cache_slot = str(unique_id or cache_key)
-        every_run = kwargs.get("Every run", kwargs.get("every_run", True))
+        every_run = kwargs.get("Every run", kwargs.get("every_run", False))
         mode_value = generation_mode if generation_mode is not None else every_run
 
         if not is_every_run_mode(mode_value):

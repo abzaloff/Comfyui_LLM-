@@ -59,6 +59,7 @@ const SETTINGS = [
     },
 ];
 const SELECTED_PRESET_PROPERTY = "llm_plus_selected_preset";
+const DEFAULT_PRESET_NAME = "Flux - Describe";
 const CONTROL_COLORS = {
     green: "#15803d",
     greenActive: "#16a34a",
@@ -508,13 +509,21 @@ app.registerExtension({
         const originalCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             originalCreated?.apply(this, arguments);
+            let restoredFromWorkflow = false;
+            const originalConfigure = this.onConfigure;
+            this.onConfigure = function () {
+                restoredFromWorkflow = true;
+                return originalConfigure?.apply(this, arguments);
+            };
+            const promptWidget = this.widgets?.find((item) => item.name === "prompt");
+            const initialPromptValue = promptWidget?.value;
             const storedPresetName = getStoredPresetName(this);
             const presetState = {
                 presets: [],
                 selectedName: storedPresetName,
             };
 
-            const presetWidget = this.addWidget("combo", "Preset", "Loading...", async (value) => {
+            const presetWidget = this.addWidget("combo", "Preset", DEFAULT_PRESET_NAME, async (value) => {
                 if (!value || value === "Loading..." || value === "No presets") {
                     return;
                 }
@@ -526,7 +535,7 @@ app.registerExtension({
                 } catch (error) {
                     alert(`LLM++: ${error.message}`);
                 }
-            }, { values: ["Loading..."] });
+            }, { values: [DEFAULT_PRESET_NAME] });
 
             const editPresetWidget = this.addWidget("button", "Edit presets", null, async () => {
                 try {
@@ -551,12 +560,14 @@ app.registerExtension({
             });
             colorizeButtonWidget(refreshWidget);
 
-            colorizeBooleanWidget(
-                this.widgets?.find((item) => item.name === "auto_unload_lmstudio"),
-            );
-            colorizeBooleanWidget(
-                this.widgets?.find((item) => item.name === "Every run"),
-            );
+            for (const name of [
+                "Enable Image Input",
+                "Enable Clip Input",
+                "auto_unload_lmstudio",
+                "Every run",
+            ]) {
+                colorizeBooleanWidget(this.widgets?.find((item) => item.name === name));
+            }
             const modelIndex = this.widgets?.findIndex((item) => item.name === "model") ?? -1;
             const refreshIndex = this.widgets?.indexOf(refreshWidget) ?? -1;
             if (modelIndex >= 0 && refreshIndex >= 0 && refreshIndex !== modelIndex - 1) {
@@ -573,18 +584,41 @@ app.registerExtension({
                 this.widgets.splice(promptIndex, 0, presetWidget, editPresetWidget);
             }
 
+            const inputSwitches = ["Enable Image Input", "Enable Clip Input"]
+                .map((name) => this.widgets?.find((item) => item.name === name))
+                .filter(Boolean);
+            if (this.widgets?.includes(presetWidget) && inputSwitches.length) {
+                for (const widget of inputSwitches) {
+                    this.widgets.splice(this.widgets.indexOf(widget), 1);
+                }
+                this.widgets.splice(this.widgets.indexOf(presetWidget), 0, ...inputSwitches);
+            }
+
             loadPresets().then((presets) => {
                 presetState.presets = presets;
                 const names = presets.map((preset) => preset.name);
                 const selectedName = choosePresetName(
                     names,
-                    presetState.selectedName || getStoredPresetName(this),
+                    presetState.selectedName || getStoredPresetName(this) || DEFAULT_PRESET_NAME,
                 );
                 presetWidget.options.values = names.length ? names : ["No presets"];
                 presetWidget.value = selectedName || "No presets";
                 presetState.selectedName = selectedName;
                 storePresetName(this, selectedName);
                 this.setDirtyCanvas(true, true);
+                if (!restoredFromWorkflow && selectedName === DEFAULT_PRESET_NAME) {
+                    loadPresetText(selectedName).then((preset) => {
+                        if (
+                            !restoredFromWorkflow &&
+                            presetState.selectedName === DEFAULT_PRESET_NAME &&
+                            promptWidget?.value === initialPromptValue
+                        ) {
+                            setNodePrompt(this, preset.text);
+                        }
+                    }).catch((error) => {
+                        console.error("LLM++ default preset load failed", error);
+                    });
+                }
             }).catch((error) => {
                 presetWidget.options.values = ["No presets"];
                 presetWidget.value = "No presets";

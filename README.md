@@ -127,17 +127,23 @@ without an image.
 
 For a ComfyUI text encoder that supports text generation, connect the same
 `CLIPLoader` output used by `CLIP Text Encode` to the optional `clip` input of
-`LLM++ Prompt`. When `clip` is connected, LLM++ generates the prompt locally
-through that encoder, using the optional `image` input as visual context. The
-`model` dropdown and API settings are ignored for this run. The output remains
-a `STRING` that can be connected to `CLIP Text Encode`. The encoder must support
-ComfyUI's `TextGenerate` operations; a conditioning-only encoder will not work.
+`LLM++ Prompt`. With `Enable Clip Input` on, a connected `clip` generates the
+prompt locally and the `model` dropdown is ignored. Turn it off to use the
+selected provider without disconnecting the encoder. `Enable Image Input`
+controls whether a connected image is sent as visual context. Image input starts
+on, while CLIP input starts off; both switches appear above `Preset`. Disabled
+inputs do not request their upstream nodes unless another part of the workflow
+needs them. The output remains a `STRING` that can be connected to
+`CLIP Text Encode`. The encoder must
+support ComfyUI's `TextGenerate` operations; a conditioning-only encoder will
+not work.
 
 ## Prompt Presets
 
 The `LLM++ Prompt` node includes a `Preset` dropdown above the `prompt` field.
 Selecting a preset copies its text into the normal `prompt` input, so workflows
 save the exact instruction text and do not depend on the preset file later.
+New nodes start with `Flux - Describe` selected and its text in `prompt`.
 
 Use `Edit presets` on the node to manage reusable instructions:
 
@@ -182,6 +188,11 @@ Describe the image using comma-separated SDXL tags.
 
 An optional ComfyUI `IMAGE` input. Image batches are supported.
 
+### `Enable Image Input`
+
+When off, the connected `image` input is ignored. This is useful when improving
+a text prompt without disconnecting an image.
+
 ### `clip`
 
 An optional ComfyUI `CLIP` input for local prompt generation. It takes priority
@@ -189,9 +200,15 @@ over the selected provider. Connect a text encoder that also works with
 ComfyUI's `TextGenerate` node. The same encoder can feed the downstream
 `CLIP Text Encode` node.
 
+### `Enable Clip Input`
+
+When off, the connected `clip` input is ignored and the selected provider in
+the `model` dropdown is used. When on, a connected `clip` takes priority.
+
 ### `model`
 
-The provider and model used for prompt generation when `clip` is not connected.
+The provider and model used for prompt generation when `clip` is not connected
+or `Enable Clip Input` is off.
 
 ### `temperature`
 
@@ -215,6 +232,7 @@ existing prompt.
 ### `auto_unload_lmstudio`
 
 Unloads the selected LM Studio model after receiving the response.
+Enabled by default on new nodes.
 
 ### `Every run`
 
@@ -224,13 +242,13 @@ Controls when the node sends a new API request.
 
 Generates a new prompt every time the workflow is queued or run.
 
-This is the default. Use it when you want a different prompt variation on every
-workflow execution.
+Use it when you want a different prompt variation on every workflow execution.
 
 #### Disabled
 
-Generates the prompt once and lets ComfyUI cache the result. A new API request
-is sent only when an input of the `LLM++ Prompt` node changes, including:
+This is the default on new nodes. It generates the prompt once and lets ComfyUI
+cache the result. A new API request is sent only when an input of the
+`LLM++ Prompt` node changes, including:
 
 - prompt text;
 - prompt to improve;
@@ -262,8 +280,8 @@ Connect it to any node that accepts text.
 4. Enter an instruction in `prompt`.
 5. Select a model.
 6. Configure `temperature`, `max_tokens`, and `top_p`.
-7. Leave `Every run` enabled for a new prompt on each execution, or disable it
-   to reuse the generated prompt until an input changes.
+7. Leave `Every run` disabled to reuse the generated prompt until an input
+   changes, or enable it for a new prompt on each execution.
 8. Connect the `prompt` output to the required text input.
 9. Queue the workflow.
 
