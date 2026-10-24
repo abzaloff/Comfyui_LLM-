@@ -12,8 +12,7 @@ that accepts text.
 
 - Mistral: `mistral-large-2512`, `mistral-medium-latest`,
   `mistral-small-latest`, and `ministral-14b-latest`
-- Gemini: `gemini-3.6-flash`, `gemini-3.5-flash`,
-  `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-2.5-pro`,
+- Gemini: `gemini-3.6-flash`, `gemini-3.1-flash-lite`, `gemini-2.5-pro`,
   `gemini-2.5-flash`, and `gemini-2.5-flash-lite`
 - Groq: `qwen/qwen3.6-27b`
 - Local LM Studio models through its OpenAI-compatible API
